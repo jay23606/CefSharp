@@ -391,6 +391,21 @@ namespace CefSharp
 
             auto frameUrl = frame->GetURL();
 
+            // Block frames with opaque origins (sandboxed iframes without allow-same-origin).
+            // Opaque origins are represented by about:blank, about:srcdoc, etc.
+            // A sandboxed iframe's src URL can match the allowlist, but its security origin
+            // is opaque and should never be allowed to access the binding API.
+            // Note: This check is imperfect - it only blocks known opaque origin schemes.
+            // A more complete fix would require CEF to expose frame security context information.
+            if (frameUrl.length() >= 6)
+            {
+                auto frameUrlStr = frameUrl.ToWString();
+                if (_wcsnicmp(frameUrlStr.c_str(), L"about:", 6) == 0)
+                {
+                    return false;
+                }
+            }
+
             CefURLParts frameUrlParts;
 
             if (CefParseURL(frameUrl, frameUrlParts))
