@@ -75,10 +75,7 @@ namespace CefSharp
                 return;
             }
 
-            //For the main browser only we check LegacyBindingEnabled and
-            //load the objects. Popups don't send this information and checking
-            //will override the _legacyBindingEnabled field
-            if (!browser->IsPopup())
+            if (extraInfo->HasKey("LegacyBindingEnabled"))
             {
                 javascriptBindingSettings->LegacyBindingEnabled = extraInfo->GetBool("LegacyBindingEnabled");
 
@@ -172,7 +169,15 @@ namespace CefSharp
             {
                 auto rootObject = GetJsRootObjectWrapper(browser->GetIdentifier(), frame->GetIdentifier());
 
-                if (javascriptBindingSettings->LegacyBindingEnabled)
+                // Calculate if JavaScript binding is allowed for this frame once.
+                // This applies to both legacy binding and modern API.
+                // The check verifies:
+                // 1. Binding is enabled in settings
+                // 2. The frame is not sandboxed
+                // 3. The frame's origin matches the allowlist (if configured)
+                bool isBindingAllowed = IsJavascriptBindingApiAllowed(javascriptBindingSettings, frame);
+
+                if (isBindingAllowed && javascriptBindingSettings->LegacyBindingEnabled)
                 {
                     if (_javascriptObjects->Count > 0 && rootObject != nullptr)
                     {
@@ -180,7 +185,7 @@ namespace CefSharp
                     }
                 }
 
-                if (IsJavascriptBindingApiAllowed(javascriptBindingSettings, frame))
+                if (isBindingAllowed)
                 {
                     //TODO: Look at adding some sort of javascript mapping layer to reduce the code duplication
                     auto global = context->GetGlobal();

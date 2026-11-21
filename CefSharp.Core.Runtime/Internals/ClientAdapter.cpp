@@ -39,6 +39,8 @@
 using namespace CefSharp::Internals::Messaging;
 using namespace CefSharp::Internals::Serialization;
 using namespace System::Security::Cryptography::X509Certificates;
+using namespace CefSharp;
+using namespace CefSharp::JavascriptBinding;
 
 namespace CefSharp
 {
@@ -208,6 +210,51 @@ namespace CefSharp
                         client = browserAdapter->GetClientAdapter().get();
                     }
                 }
+            }
+
+            if (!extraInfo.get())
+            {
+                extraInfo = CefDictionaryValue::Create();
+            }
+
+            // Mostly duplicated in ManagedCefBrowserAdapter::CreateBrowser
+            // Should be refactored into a common helper
+            auto objectRepository = _browserControl->JavascriptObjectRepository;
+            auto objectRepositorySettings = objectRepository->Settings;
+
+            // Legacy binding not enabled for popups
+            extraInfo->SetBool("LegacyBindingEnabled", false);
+
+            if (!String::IsNullOrEmpty(objectRepositorySettings->JavascriptBindingApiGlobalObjectName))
+            {
+                auto globalObjName = objectRepositorySettings->JavascriptBindingApiGlobalObjectName;
+
+                if (StringCheck::IsFirstCharacterLowercase(globalObjName))
+                {
+                    extraInfo->SetString("JsBindingPropertyNameCamelCase", StringUtils::ToNative(globalObjName));
+                }
+                else
+                {
+                    extraInfo->SetString("JsBindingPropertyName", StringUtils::ToNative(globalObjName));
+                }
+            }
+
+            extraInfo->SetBool("JavascriptBindingApiEnabled", objectRepositorySettings->JavascriptBindingApiEnabled);
+
+            auto hasJavascriptBindingApiAllowOrigins = objectRepositorySettings->HasJavascriptBindingApiAllowOrigins();
+
+            extraInfo->SetBool("JavascriptBindingApiHasAllowOrigins", hasJavascriptBindingApiAllowOrigins);
+
+            if (hasJavascriptBindingApiAllowOrigins)
+            {
+                auto allowOriginList = CefListValue::Create();
+
+                for (int i = 0; i < objectRepositorySettings->JavascriptBindingApiAllowOrigins->Length; i++)
+                {
+                    allowOriginList->SetString(i, StringUtils::ToNative(objectRepositorySettings->JavascriptBindingApiAllowOrigins[i]));
+                }
+
+                extraInfo->SetList("JavascriptBindingApiAllowOrigins", allowOriginList);
             }
 
             return result;
